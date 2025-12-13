@@ -18,47 +18,45 @@ interface MarketingEfficiencyChartProps {
 }
 
 // Extended Red Palette for better differentiation
-const RED_PALETTE = [
-  '#ef4444', // 500
-  '#b91c1c', // 700
-  '#f87171', // 400
-  '#991b1b', // 800
-  '#fca5a5', // 300
-  '#7f1d1d', // 900
-  '#fecaca', // 200
-  '#dc2626', // 600
-];
-
-// Extended Green Palette
-const GREEN_PALETTE = [
-  '#10b981', // 500
-  '#047857', // 700
-  '#34d399', // 400
-  '#065f46', // 800
-  '#6ee7b7', // 300
-  '#064e3b', // 900
-  '#a7f3d0', // 200
-  '#059669', // 600
-];
-
-const getRedShade = (index: number) => RED_PALETTE[index % RED_PALETTE.length];
-const getGreenShade = (index: number) => GREEN_PALETTE[index % GREEN_PALETTE.length];
+const SPENT_COLOR = '#ef4444'; // Red 500
+const COMMISSION_COLOR = '#10b981'; // Emerald 500
 
 const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       const data = payload[0].payload as ChartDataPoint;
-      
-      // Filter out the relevant items from payload
-      // payload items contain: name, value, color, payload (the full data object), dataKey
-      const spentPayload = payload.filter((p: any) => p.dataKey && p.dataKey.toString().startsWith('spent__'));
-      const commPayload = payload.filter((p: any) => p.dataKey && p.dataKey.toString().startsWith('commission__'));
-  
-      // Sort descending by value for better readability
-      spentPayload.sort((a: any, b: any) => (b.value || 0) - (a.value || 0));
-      commPayload.sort((a: any, b: any) => (b.value || 0) - (a.value || 0));
-  
+
+      // Group payload by campaign to show Spent and Commission in the same row
+      const campaignStats = new Map<string, { spent: number; commission: number; cpc: number; roas: number }>();
+
+      payload.forEach((p: any) => {
+          // p.name comes from the 'name' prop of the Bar/Line, e.g., 'spent__CampaignName'
+          const key = p.name?.toString() || ''; 
+          let name = '';
+          
+          if (key.startsWith('spent__')) {
+              name = key.replace('spent__', '');
+          } else if (key.startsWith('commission__')) {
+              name = key.replace('commission__', '');
+          }
+
+          if (name && !campaignStats.has(name)) {
+             // Fetch all metrics from the raw data object using the naming convention
+             campaignStats.set(name, { 
+                 spent: data[`spent__${name}`] || 0,
+                 commission: data[`commission__${name}`] || 0,
+                 cpc: data[`cpc__${name}`] || 0,
+                 roas: data[`roas__${name}`] || 0
+             });
+          }
+      });
+
+      // Convert to array and sort by Commission (Revenue) descending
+      const sortedCampaigns = Array.from(campaignStats.entries())
+          .map(([name, stats]) => ({ name, ...stats }))
+          .sort((a, b) => b.commission - a.commission);
+
       return (
-        <div className="bg-white p-4 rounded-xl shadow-xl border border-slate-200 text-xs min-w-[320px] z-50">
+        <div className="bg-white p-4 rounded-xl shadow-xl border border-slate-200 text-xs min-w-[500px] z-50">
           <p className="font-bold text-slate-800 text-sm mb-3 border-b border-slate-100 pb-2">
               {new Date(data.date).toLocaleDateString('vi-VN', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' })}
           </p>
@@ -83,53 +81,40 @@ const CustomTooltip = ({ active, payload, label }: any) => {
                </div>
           </div>
   
-          {/* 2-Column Breakdown */}
-          <div className="grid grid-cols-2 gap-4">
-              
-              {/* Left: Spend */}
-              <div>
-                  <div className="flex items-center gap-1.5 mb-2 pb-1 border-b border-red-100">
-                      <div className="w-1.5 h-1.5 rounded-full bg-red-500"></div>
-                      <span className="font-bold text-red-700 uppercase text-[10px]">Chi Tiêu</span>
+          {/* Table Header */}
+          <div className="grid grid-cols-12 gap-2 mb-2 px-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 pb-1">
+              <div className="col-span-3">Campaign</div>
+              <div className="col-span-2 text-right">Chi (Ads)</div>
+              <div className="col-span-3 text-right">Thu (HH)</div>
+              <div className="col-span-2 text-right">CPC</div>
+              <div className="col-span-2 text-right">ROAS</div>
+          </div>
+
+          {/* Campaign Rows */}
+          <div className="space-y-0.5 max-h-[300px] overflow-y-auto">
+              {sortedCampaigns.map((camp) => (
+                  <div key={camp.name} className="grid grid-cols-12 gap-2 items-center px-2 py-1.5 hover:bg-slate-50 rounded transition-colors border-b border-slate-50 last:border-0">
+                      
+                      <div className="col-span-3 font-medium text-slate-700 truncate" title={camp.name}>
+                          {camp.name}
+                      </div>
+                      <div className="col-span-2 text-right text-red-600 font-mono text-[11px]">
+                          {new Intl.NumberFormat('vi-VN', { notation: 'compact', compactDisplay: 'short' }).format(camp.spent)}
+                      </div>
+                      <div className="col-span-3 text-right text-emerald-600 font-mono font-bold text-[11px]">
+                          {new Intl.NumberFormat('vi-VN', { notation: 'compact', compactDisplay: 'short' }).format(camp.commission)}
+                      </div>
+                      <div className="col-span-2 text-right text-slate-500 font-mono text-[11px]">
+                          {new Intl.NumberFormat('vi-VN').format(camp.cpc)}
+                      </div>
+                      <div className="col-span-2 text-right text-slate-500 font-mono text-[11px]">
+                          {camp.roas.toFixed(2)}x
+                      </div>
                   </div>
-                  <div className="space-y-1">
-                      {spentPayload.map((entry: any) => {
-                          const name = entry.name?.toString().replace('spent__', '') || '';
-                          return (
-                               <div key={entry.name} className="flex justify-between items-center text-slate-600 gap-2">
-                                  <span className="truncate flex-1 font-medium" style={{color: entry.color}} title={name}>{name}</span>
-                                  <span className="text-slate-800 font-mono text-[10px]">
-                                       {new Intl.NumberFormat('vi-VN', { notation: 'compact', compactDisplay: 'short' }).format(entry.value as number)}
-                                  </span>
-                               </div>
-                          );
-                      })}
-                      {spentPayload.length === 0 && <span className="text-slate-400 italic text-[10px]">Không có dữ liệu</span>}
-                  </div>
-              </div>
-  
-              {/* Right: Commission */}
-              <div>
-                   <div className="flex items-center gap-1.5 mb-2 pb-1 border-b border-emerald-100">
-                      <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
-                      <span className="font-bold text-emerald-700 uppercase text-[10px]">Hoa Hồng</span>
-                  </div>
-                  <div className="space-y-1">
-                      {commPayload.map((entry: any) => {
-                          const name = entry.name?.toString().replace('commission__', '') || '';
-                          return (
-                               <div key={entry.name} className="flex justify-between items-center text-slate-600 gap-2">
-                                  <span className="truncate flex-1 font-medium" style={{color: entry.color}} title={name}>{name}</span>
-                                  <span className="text-slate-800 font-mono text-[10px]">
-                                       {new Intl.NumberFormat('vi-VN', { notation: 'compact', compactDisplay: 'short' }).format(entry.value as number)}
-                                  </span>
-                               </div>
-                          );
-                      })}
-                      {commPayload.length === 0 && <span className="text-slate-400 italic text-[10px]">Không có dữ liệu</span>}
-                  </div>
-              </div>
-  
+              ))}
+              {sortedCampaigns.length === 0 && (
+                  <div className="text-center py-2 text-slate-400 italic">Không có dữ liệu chi tiết</div>
+              )}
           </div>
         </div>
       );
@@ -148,7 +133,7 @@ export const MarketingEfficiencyChart: React.FC<MarketingEfficiencyChartProps> =
   };
 
   return (
-    <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 h-full">
+    <div className="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-slate-200 h-full">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
           <div>
             <h3 className="text-lg font-semibold text-slate-800">
@@ -160,9 +145,10 @@ export const MarketingEfficiencyChart: React.FC<MarketingEfficiencyChartProps> =
           </div>
       </div>
       
-      <div className="h-[500px] w-full">
+      {/* Responsive Height Container */}
+      <div className="h-[300px] sm:h-[400px] lg:h-[500px] w-full">
         <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={data} margin={{ top: 20, right: 20, bottom: 20, left: 10 }}>
+          <ComposedChart data={data} margin={{ top: 20, right: 10, bottom: 20, left: 0 }}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
             
             <XAxis 
@@ -180,7 +166,8 @@ export const MarketingEfficiencyChart: React.FC<MarketingEfficiencyChartProps> =
               stroke="#64748b" 
               fontSize={11}
               tickFormatter={(val) => val >= 1000000 ? `${(val/1000000).toFixed(1)}M` : `${val/1000}k`}
-              label={{ value: 'VND', angle: -90, position: 'insideLeft', offset: 0, fontSize: 10 }}
+              label={{ value: 'VND', angle: -90, position: 'insideLeft', offset: 10, fontSize: 10 }}
+              width={50}
             />
 
             {/* Right Axis: Orders Count */}
@@ -189,14 +176,16 @@ export const MarketingEfficiencyChart: React.FC<MarketingEfficiencyChartProps> =
               orientation="right"
               stroke="#f59e0b" 
               fontSize={11}
-              label={{ value: 'Số đơn', angle: 90, position: 'insideRight', offset: 0, fontSize: 10, fill: '#f59e0b' }}
+              label={{ value: 'Số đơn', angle: 90, position: 'insideRight', offset: 10, fontSize: 10, fill: '#f59e0b' }}
+              width={40}
             />
 
             <Tooltip content={<CustomTooltip />} />
             
             <Legend 
+              wrapperStyle={{ paddingTop: '20px' }}
               content={() => (
-                <div className="flex justify-center gap-6 pt-4 text-xs">
+                <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-xs">
                   <div className="flex items-center gap-2">
                     <div className="w-3 h-3 bg-red-500 rounded-sm"></div>
                     <span className="text-slate-600">Chi tiêu (Ads)</span>
@@ -214,28 +203,32 @@ export const MarketingEfficiencyChart: React.FC<MarketingEfficiencyChartProps> =
             />
 
             {/* Render Stacked Bars for Spend */}
-            {activeCampaigns.map((camp, index) => (
+            {activeCampaigns.map((camp) => (
                 <Bar 
                     key={`spent-${camp}`}
                     yAxisId="left" 
                     dataKey={`spent__${camp}`} 
                     name={`spent__${camp}`}
                     stackId="spent" 
-                    fill={getRedShade(index)} 
+                    fill={SPENT_COLOR} 
                     barSize={20}
+                    stroke="#ffffff"
+                    strokeWidth={0.5}
                 />
             ))}
 
             {/* Render Stacked Bars for Commission */}
-            {activeCampaigns.map((camp, index) => (
+            {activeCampaigns.map((camp) => (
                 <Bar 
                     key={`comm-${camp}`}
                     yAxisId="left" 
                     dataKey={`commission__${camp}`} 
                     name={`commission__${camp}`}
                     stackId="commission" 
-                    fill={getGreenShade(index)} 
+                    fill={COMMISSION_COLOR} 
                     barSize={20}
+                    stroke="#ffffff"
+                    strokeWidth={0.5}
                 />
             ))}
 

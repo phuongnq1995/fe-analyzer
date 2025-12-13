@@ -18,6 +18,7 @@ export interface CampaignRawData {
   cpc: number;
   conversionRate: number;
   revenue: number;
+  roas: number;
 }
 
 export interface ApiResponse {

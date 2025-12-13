@@ -18,11 +18,20 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigate
   
   // Helper to get default date range
   const getDefaultDateRange = () => {
-    // For demo purposes with the provided mock data (Dec 2025), we set the range to cover that data.
-    // In production, this would likely be today's date minus 7 days.
+    const today = new Date();
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(today.getDate() - 6); // Last 7 days including today
+
+    const formatDate = (date: Date) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
+
     return {
-      start: '2025-12-04',
-      end: '2025-12-10'
+      start: formatDate(sevenDaysAgo),
+      end: formatDate(today)
     };
   };
 
@@ -37,7 +46,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigate
       // Ensure we have a valid date range to pass (fallback to default if empty strings)
       const currentStart = dateRange.start || getDefaultDateRange().start;
       const currentEnd = dateRange.end || getDefaultDateRange().end;
-      const token = user.token || '';
 
       // 1. Fetch main dashboard data and Recommendations in parallel
       const [result, recs] = await Promise.all([
@@ -105,6 +113,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigate
             campaignsInView.add(eff.name);
             point[`spent__${eff.name}`] = eff.spent;
             point[`commission__${eff.name}`] = eff.commission;
+
+            // Add extra metric keys for Tooltip
+            point[`cpc__${eff.name}`] = eff.cpc;
+            point[`conversionRate__${eff.name}`] = eff.conversionRate;
+            point[`roas__${eff.name}`] = eff.roas;
         });
 
         chartData.push(point);
@@ -131,96 +144,103 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigate
       
       {/* Header */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-auto md:h-16 py-4 md:py-0 flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2 self-start md:self-center">
-            <svg className="w-8 h-8 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-            </svg>
-            <div>
-                <h1 className="text-xl font-bold tracking-tight text-slate-800 leading-none">
-                Hiệu Suất Tiếp Thị
-                </h1>
-                <p className="text-xs text-slate-500">Xin chào, {user.username}</p>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 md:py-4 flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="flex items-center justify-between w-full md:w-auto">
+            <div className="flex items-center gap-2">
+                <svg className="w-8 h-8 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+                <div>
+                    <h1 className="text-lg md:text-xl font-bold tracking-tight text-slate-800 leading-none">
+                    Hiệu Suất Tiếp Thị
+                    </h1>
+                    <p className="text-xs text-slate-500">Xin chào, {user.username}</p>
+                </div>
             </div>
+            {/* Mobile Logout (optional, or keep it in the main cluster) */}
           </div>
           
-          <div className="flex flex-col sm:flex-row items-center gap-4 w-full md:w-auto">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
 
-            {/* Import Button */}
-            <button
-                onClick={onNavigateToImport}
-                className="px-3 py-2 rounded-lg text-sm font-medium text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 transition-colors flex items-center gap-2"
-            >
-                <svg className="w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                </svg>
-                Import CSV
-            </button>
-            
-            {/* Campaign Filter Dropdown */}
-            <select 
-                value={selectedCampaign}
-                onChange={(e) => setSelectedCampaign(e.target.value)}
-                className="bg-slate-100 border-none text-sm rounded-lg px-3 py-2 text-slate-700 font-medium focus:ring-2 focus:ring-emerald-500 outline-none cursor-pointer hover:bg-slate-200 transition-colors max-w-[150px] sm:max-w-[200px]"
-            >
-                <option value="all">Tất cả Chiến dịch</option>
-                {allCampaigns.map(c => (
-                    <option key={c} value={c}>{c}</option>
-                ))}
-            </select>
+            <div className="grid grid-cols-2 sm:flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
+                {/* Import Button */}
+                <button
+                    onClick={onNavigateToImport}
+                    className="px-3 py-2 rounded-lg text-sm font-medium text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 transition-colors flex items-center justify-center gap-2"
+                >
+                    <svg className="w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                    </svg>
+                    Import
+                </button>
+                
+                {/* Campaign Filter Dropdown */}
+                <select 
+                    value={selectedCampaign}
+                    onChange={(e) => setSelectedCampaign(e.target.value)}
+                    className="bg-slate-100 border-none text-sm rounded-lg px-3 py-2 text-slate-700 font-medium focus:ring-2 focus:ring-emerald-500 outline-none cursor-pointer hover:bg-slate-200 transition-colors w-full sm:w-auto sm:max-w-[200px]"
+                >
+                    <option value="all">Tất cả Chiến dịch</option>
+                    {allCampaigns.map(c => (
+                        <option key={c} value={c}>{c}</option>
+                    ))}
+                </select>
+            </div>
 
-            <button 
-              onClick={fetchData} 
-              disabled={status === LoadingState.LOADING}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 w-full sm:w-auto justify-center
-                ${status === LoadingState.LOADING 
-                  ? 'bg-slate-100 text-slate-400 cursor-not-allowed' 
-                  : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-md hover:shadow-lg'
-                }`}
-            >
-              {status === LoadingState.LOADING ? (
-                 <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-              ) : (
-                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-              )}
-            </button>
-            
-            {/* Logout Button */}
-            <button 
-                onClick={onLogout}
-                className="px-3 py-2 rounded-lg text-sm font-medium text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 transition-colors"
-                title="Đăng xuất"
-            >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                </svg>
-            </button>
+            <div className="flex items-center gap-2 sm:gap-3">
+                <button 
+                  onClick={fetchData} 
+                  disabled={status === LoadingState.LOADING}
+                  className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2
+                    ${status === LoadingState.LOADING 
+                      ? 'bg-slate-100 text-slate-400 cursor-not-allowed' 
+                      : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-md hover:shadow-lg'
+                    }`}
+                >
+                  {status === LoadingState.LOADING ? (
+                     <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                  ) : (
+                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                  )}
+                </button>
+                
+                {/* Logout Button */}
+                <button 
+                    onClick={onLogout}
+                    className="px-3 py-2 rounded-lg text-sm font-medium text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 transition-colors"
+                    title="Đăng xuất"
+                >
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                    </svg>
+                </button>
+            </div>
           </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
         
         {/* Date Filters Row */}
-        <div className="flex items-center justify-end">
-            <div className="flex items-center bg-white rounded-lg p-1 text-sm border border-slate-200 shadow-sm">
-                <div className="flex items-center px-3 py-1">
-                    <span className="text-slate-400 mr-2 text-xs font-medium uppercase">Từ</span>
+        <div className="flex flex-col sm:flex-row items-end sm:items-center justify-end gap-2">
+            <div className="flex items-center bg-white rounded-lg p-1 text-sm border border-slate-200 shadow-sm w-full sm:w-auto">
+                <div className="flex items-center px-3 py-1 flex-1 sm:flex-none">
+                    <span className="text-slate-400 mr-2 text-xs font-medium uppercase whitespace-nowrap">Từ</span>
                     <input 
                         type="date" 
                         value={dateRange.start}
                         onChange={(e) => handleDateChange('start', e.target.value)}
-                        className="bg-transparent border-none focus:ring-0 text-slate-700 p-0 text-sm font-medium cursor-pointer outline-none"
+                        className="bg-transparent border-none focus:ring-0 text-slate-700 p-0 text-sm font-medium cursor-pointer outline-none w-full"
                     />
                 </div>
                 <div className="w-px h-4 bg-slate-200 mx-1"></div>
-                <div className="flex items-center px-3 py-1">
-                    <span className="text-slate-400 mr-2 text-xs font-medium uppercase">Đến</span>
+                <div className="flex items-center px-3 py-1 flex-1 sm:flex-none">
+                    <span className="text-slate-400 mr-2 text-xs font-medium uppercase whitespace-nowrap">Đến</span>
                     <input 
                         type="date" 
                         value={dateRange.end}
                         onChange={(e) => handleDateChange('end', e.target.value)}
-                        className="bg-transparent border-none focus:ring-0 text-slate-700 p-0 text-sm font-medium cursor-pointer outline-none"
+                        className="bg-transparent border-none focus:ring-0 text-slate-700 p-0 text-sm font-medium cursor-pointer outline-none w-full"
                     />
                 </div>
             </div>
@@ -234,14 +254,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigate
         )}
 
         {status === LoadingState.LOADING && rawData.length === 0 && (
-          <div className="h-96 flex flex-col items-center justify-center text-slate-400">
-            <div className="w-12 h-12 border-4 border-emerald-200 border-t-emerald-600 rounded-full animate-spin mb-4"></div>
-            <p>Đang xử lý dữ liệu...</p>
+          <div className="h-80 md:h-96 flex flex-col items-center justify-center text-slate-400">
+            <div className="w-10 h-10 md:w-12 md:h-12 border-4 border-emerald-200 border-t-emerald-600 rounded-full animate-spin mb-4"></div>
+            <p className="text-sm md:text-base">Đang xử lý dữ liệu...</p>
           </div>
         )}
 
         {status === LoadingState.SUCCESS && rawData.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-20 text-center">
+          <div className="flex flex-col items-center justify-center py-16 md:py-20 text-center px-4">
             <div className="bg-slate-100 p-4 rounded-full mb-4">
               <svg className="w-8 h-8 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
@@ -266,8 +286,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigate
         {rawData.length > 0 && (
           <>
             {/* KPI Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-white p-4 md:p-5 rounded-xl border border-slate-200 shadow-sm">
                 <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Tổng Đơn Hàng</p>
                 <div className="flex items-baseline gap-2 mt-1">
                     <p className="text-2xl font-bold text-slate-800">{totalOrders.toLocaleString()}</p>
@@ -275,7 +295,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigate
                 </div>
               </div>
               
-              <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+              <div className="bg-white p-4 md:p-5 rounded-xl border border-slate-200 shadow-sm">
                 <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Tổng Chi Tiêu (Ads)</p>
                 <div className="flex items-baseline gap-2 mt-1">
                     <p className="text-2xl font-bold text-red-600">{new Intl.NumberFormat('vi-VN', { notation: 'compact', compactDisplay: 'short' }).format(totalSpent)}</p>
@@ -283,7 +303,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigate
                 </div>
               </div>
 
-              <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+              <div className="bg-white p-4 md:p-5 rounded-xl border border-slate-200 shadow-sm">
                 <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Tổng Hoa Hồng</p>
                 <div className="flex items-baseline gap-2 mt-1">
                     <p className="text-2xl font-bold text-emerald-600">{new Intl.NumberFormat('vi-VN', { notation: 'compact', compactDisplay: 'short' }).format(totalCommission)}</p>
@@ -291,7 +311,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigate
                 </div>
               </div>
 
-               <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+               <div className="bg-white p-4 md:p-5 rounded-xl border border-slate-200 shadow-sm">
                 <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Lợi Nhuận Ròng (Net)</p>
                 <div className="flex items-baseline gap-2 mt-1">
                     <p className={`text-2xl font-bold ${netProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
