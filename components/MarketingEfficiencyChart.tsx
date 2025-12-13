@@ -28,18 +28,11 @@ const CustomTooltip = ({ active, payload, label }: any) => {
       // Group payload by campaign to show Spent and Commission in the same row
       const campaignStats = new Map<string, { spent: number; commission: number; cpc: number; roas: number }>();
 
-      payload.forEach((p: any) => {
-          // p.name comes from the 'name' prop of the Bar/Line, e.g., 'spent__CampaignName'
-          const key = p.name?.toString() || ''; 
-          let name = '';
-          
+      // Iterate over data keys to find campaign specific data (prefixed keys)
+      // This allows us to show the breakdown even though the chart bars are now aggregates
+      Object.keys(data).forEach((key) => {
           if (key.startsWith('spent__')) {
-              name = key.replace('spent__', '');
-          } else if (key.startsWith('commission__')) {
-              name = key.replace('commission__', '');
-          }
-
-          if (name && !campaignStats.has(name)) {
+              const name = key.replace('spent__', '');
              // Fetch all metrics from the raw data object using the naming convention
              campaignStats.set(name, { 
                  spent: data[`spent__${name}`] || 0,
@@ -137,10 +130,10 @@ export const MarketingEfficiencyChart: React.FC<MarketingEfficiencyChartProps> =
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
           <div>
             <h3 className="text-lg font-semibold text-slate-800">
-                Hiệu quả theo Thời gian (Phân rã Chiến dịch)
+                Hiệu quả theo Thời gian (Tổng quan)
             </h3>
             <p className="text-xs text-slate-500 mt-1">
-                Cột Đỏ (Trái): Chi tiêu Quảng cáo • Cột Xanh (Phải): Hoa hồng thu được • Màu sắc đậm/nhạt tương ứng với các chiến dịch khác nhau
+                Cột Đỏ (Trái): Tổng Chi tiêu Quảng cáo • Cột Xanh (Phải): Tổng Hoa hồng thu được
             </p>
           </div>
       </div>
@@ -188,11 +181,11 @@ export const MarketingEfficiencyChart: React.FC<MarketingEfficiencyChartProps> =
                 <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-xs">
                   <div className="flex items-center gap-2">
                     <div className="w-3 h-3 bg-red-500 rounded-sm"></div>
-                    <span className="text-slate-600">Chi tiêu (Ads)</span>
+                    <span className="text-slate-600">Tổng Chi tiêu</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="w-3 h-3 bg-emerald-500 rounded-sm"></div>
-                    <span className="text-slate-600">Hoa hồng</span>
+                    <span className="text-slate-600">Tổng Hoa hồng</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="w-4 h-0.5 bg-amber-500"></div>
@@ -202,35 +195,25 @@ export const MarketingEfficiencyChart: React.FC<MarketingEfficiencyChartProps> =
               )}
             />
 
-            {/* Render Stacked Bars for Spend */}
-            {activeCampaigns.map((camp) => (
-                <Bar 
-                    key={`spent-${camp}`}
-                    yAxisId="left" 
-                    dataKey={`spent__${camp}`} 
-                    name={`spent__${camp}`}
-                    stackId="spent" 
-                    fill={SPENT_COLOR} 
-                    barSize={20}
-                    stroke="#ffffff"
-                    strokeWidth={0.5}
-                />
-            ))}
+            {/* Aggregated Bar for Total Spent */}
+            <Bar 
+                yAxisId="left" 
+                dataKey="totalSpent" 
+                name="Tổng Chi"
+                fill={SPENT_COLOR} 
+                barSize={20}
+                radius={[4, 4, 0, 0]}
+            />
 
-            {/* Render Stacked Bars for Commission */}
-            {activeCampaigns.map((camp) => (
-                <Bar 
-                    key={`comm-${camp}`}
-                    yAxisId="left" 
-                    dataKey={`commission__${camp}`} 
-                    name={`commission__${camp}`}
-                    stackId="commission" 
-                    fill={COMMISSION_COLOR} 
-                    barSize={20}
-                    stroke="#ffffff"
-                    strokeWidth={0.5}
-                />
-            ))}
+            {/* Aggregated Bar for Total Commission */}
+            <Bar 
+                yAxisId="left" 
+                dataKey="totalCommission" 
+                name="Tổng Thu"
+                fill={COMMISSION_COLOR} 
+                barSize={20}
+                radius={[4, 4, 0, 0]}
+            />
 
             {/* Orders Line (Volume) */}
             <Line 
