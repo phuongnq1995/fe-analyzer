@@ -1,4 +1,4 @@
-import { ApiResponse, CampaignRawData, Recommendation } from "../types";
+import { ApiResponse, CampaignRawData, ApiCampaignEfficiency, Recommendation } from "../types";
 import { authenticatedFetch } from "./authService";
 
 const baseUrl = import.meta.env.VITE_API_URL;
@@ -21,8 +21,7 @@ export const fetchDashboardData = async (from?: string, to?: string): Promise<Ap
       throw new Error(`Lỗi API: ${response.status} ${response.statusText}`);
     }
 
-    // Expecting raw data (CampaignRawData[]) from the new endpoint
-    const rawData: CampaignRawData[] = await response.json();
+    const rawData: ApiCampaignEfficiency[] = await response.json();
 
     return { dailyStats : rawData };
   } catch (error: any) {

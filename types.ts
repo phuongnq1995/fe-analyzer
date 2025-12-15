@@ -21,8 +21,13 @@ export interface CampaignRawData {
   roas: number;
 }
 
+export interface ApiCampaignEfficiency {
+  "date": string;
+  "campaignEfficiencies": CampaignRawData[]
+}
+
 export interface ApiResponse {
-  dailyStats: CampaignRawData[];
+  dailyStats: ApiCampaignEfficiency[];
 }
 
 export enum LoadingState {

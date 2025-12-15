@@ -1,8 +1,9 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { fetchDashboardData, fetchRecommendations } from '../services/geminiService';
 import { ChartDataPoint, CampaignRawData, LoadingState, User, Recommendation } from '../types';
 import { MarketingEfficiencyChart } from './MarketingEfficiencyChart';
 import { RecommendationList } from './RecommendationList';
+import { CampaignDetailsModal } from './CampaignDetailsModal';
 
 interface DashboardProps {
   user: User;
@@ -15,7 +16,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigate
   const [rawData, setRawData] = useState<CampaignRawData[]>([]);
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
   const [error, setError] = useState<string | null>(null);
-  
+
+  // Ref to prevent double fetch in React Strict Mode
+  const dataFetchedRef = useRef(false);
+
+  // Modal State
+  const [detailDate, setDetailDate] = useState<string | null>(null);
+
   // Helper to get default date range
   const getDefaultDateRange = () => {
     const today = new Date();
@@ -66,10 +73,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigate
     }
   };
 
-  // Initial fetch
+  // Initial fetch with Double-Call Prevention
   useEffect(() => {
+    if (dataFetchedRef.current) return;
+    dataFetchedRef.current = true;
+    
     fetchData();
-  }, []); // Only run on mount, date changes are handled by the user clicking filter or if we added it to dependency
+  }, []); 
 
   // 1. Extract Unique Campaigns for Filter Dropdown
   const allCampaigns = useMemo(() => {
@@ -129,6 +139,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigate
     return { processedData: result, activeCampaignsInView: sortedActiveCampaigns };
   }, [rawData, dateRange, selectedCampaign]);
 
+  // Data for Modal
+  const detailData = useMemo(() => {
+      if (!detailDate) return [];
+      const dayData = rawData.find(d => d.date === detailDate);
+      return dayData ? dayData.campaignEfficiencies : [];
+  }, [detailDate, rawData]);
+
   // Calculate Summary KPIs
   const totalOrders = processedData.reduce((acc, curr) => acc + curr.totalOrders, 0);
   const totalCommission = processedData.reduce((acc, curr) => acc + curr.totalCommission, 0);
@@ -157,7 +174,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigate
                     <p className="text-xs text-slate-500">Xin chào, {user.username}</p>
                 </div>
             </div>
-            {/* Mobile Logout (optional, or keep it in the main cluster) */}
           </div>
           
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
@@ -332,11 +348,22 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigate
               <MarketingEfficiencyChart 
                   data={processedData} 
                   activeCampaigns={activeCampaignsInView}
+                  onViewDetails={(date) => setDetailDate(date)}
               />
             </div>
           </>
         )}
       </main>
+
+      {/* Details Modal */}
+      {detailDate && (
+        <CampaignDetailsModal 
+          isOpen={!!detailDate} 
+          onClose={() => setDetailDate(null)} 
+          date={detailDate} 
+          data={detailData} 
+        />
+      )}
     </div>
   );
 };

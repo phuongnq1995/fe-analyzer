@@ -1,5 +1,5 @@
 {
   "name": "fe-analyzer",
-  "description": "A data visualization dashboard showing hourly activity density over the last 30 days using a heatmap and trend analysis.",
+  "description": "A data visualization dashboard showing marketing efficiency and trend analysis.",
   "requestFramePermissions": []
 }
