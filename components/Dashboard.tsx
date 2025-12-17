@@ -81,6 +81,20 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigate
     fetchData();
   }, []); 
 
+  
+  // Add ref for first render check on date filter updates
+  const isFirstRender = useRef(true);
+
+  // Refetch when Date Range changes
+  useEffect(() => {
+    // Skip the very first render because the initial fetch is handled above
+    if (isFirstRender.current) {
+        isFirstRender.current = false;
+        return;
+    }
+    fetchData();
+  }, [dateRange.start, dateRange.end]);
+
   // 1. Extract Unique Campaigns for Filter Dropdown
   const allCampaigns = useMemo(() => {
     const campaigns = new Set<string>();
@@ -300,7 +314,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigate
         )}
 
         {rawData.length > 0 && (
-          <>
+          <div className={`transition-all duration-300 ${status === LoadingState.LOADING ? 'opacity-50 blur-[1px]' : ''}`}>
             {/* KPI Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="bg-white p-4 md:p-5 rounded-xl border border-slate-200 shadow-sm">
@@ -351,7 +365,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigate
                   onViewDetails={(date) => setDetailDate(date)}
               />
             </div>
-          </>
+          </div>
         )}
       </main>
 
