@@ -1,15 +1,15 @@
-import { ApiResponse, CampaignRawData, ApiCampaignEfficiency, Recommendation } from "../types";
+import { ApiResponse, ApiCampaignEfficiency, Recommendation } from "../types";
 import { authenticatedFetch } from "./authService";
 
 const baseUrl = import.meta.env.VITE_API_URL;
 
-export const fetchDashboardData = async (from?: string, to?: string): Promise<ApiResponse> => {
-  try {
+export const fetchDashboardData = async (from?: string, to?: string, type: 'clickTime' | 'orderTime' = 'clickTime'): Promise<ApiResponse> => {
+try {
     const url = new URL(baseUrl+'/stats');
     
     if (from) url.searchParams.append('from', from);
     if (to) url.searchParams.append('to', to);
-
+    url.searchParams.append('type', type);
     const response = await authenticatedFetch(url.toString(), {
       method: 'GET',
       headers: {
@@ -26,8 +26,6 @@ export const fetchDashboardData = async (from?: string, to?: string): Promise<Ap
     return { dailyStats : rawData };
   } catch (error: any) {
     console.warn("API request failed:", error);
-    
-    // Return empty data instead of mock fallback
     return { dailyStats: [] };
   }
 };
@@ -45,7 +43,6 @@ export const fetchRecommendations = async (): Promise<Recommendation[]> => {
       return await response.json();
     } catch (error) {
         console.warn("API request failed for recommendations:", error);
-        // Return empty data instead of mock fallback
         return [];
     }
 };

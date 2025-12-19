@@ -1,19 +1,23 @@
+
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { fetchDashboardData, fetchRecommendations } from '../services/geminiService';
-import { ChartDataPoint, CampaignRawData, LoadingState, User, Recommendation } from '../types';
+import { ChartDataPoint, ApiCampaignEfficiency, LoadingState, User, Recommendation } from '../types';
 import { MarketingEfficiencyChart } from './MarketingEfficiencyChart';
 import { RecommendationList } from './RecommendationList';
 import { CampaignDetailsModal } from './CampaignDetailsModal';
+import { useShop } from '../context/ShopContext';
 
 interface DashboardProps {
   user: User;
   onLogout: () => void;
   onNavigateToImport: () => void;
+  onNavigateToShopSettings: () => void;
 }
 
-export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToImport }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToImport, onNavigateToShopSettings }) => {
+  const { shopSettings } = useShop();
   const [status, setStatus] = useState<LoadingState>(LoadingState.IDLE);
-  const [rawData, setRawData] = useState<CampaignRawData[]>([]);
+  const [rawData, setRawData] = useState<ApiCampaignEfficiency[]>([]);
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
   const [error, setError] = useState<string | null>(null);
 
@@ -23,11 +27,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigate
   // Modal State
   const [detailDate, setDetailDate] = useState<string | null>(null);
 
-  // Helper to get default date range
+  // Helper to get default date range (10 days)
   const getDefaultDateRange = () => {
     const today = new Date();
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(today.getDate() - 6); // Last 7 days including today
+    const nineDaysAgo = new Date();
+    nineDaysAgo.setDate(today.getDate() - 9); // Last 10 days
 
     const formatDate = (date: Date) => {
         const year = date.getFullYear();
@@ -37,7 +41,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigate
     };
 
     return {
-      start: formatDate(sevenDaysAgo),
+      start: formatDate(nineDaysAgo),
       end: formatDate(today)
     };
   };
@@ -45,21 +49,19 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigate
   // Filters
   const [dateRange, setDateRange] = useState<{ start: string; end: string }>(getDefaultDateRange());
   const [selectedCampaign, setSelectedCampaign] = useState<string>('all');
+  const [queryType, setQueryType] = useState<'clickTime' | 'orderTime'>('clickTime');
 
   const fetchData = async () => {
     setStatus(LoadingState.LOADING);
     setError(null);
     try {
-      // Ensure we have a valid date range to pass (fallback to default if empty strings)
+      // Ensure we have a valid date range to pass
       const currentStart = dateRange.start || getDefaultDateRange().start;
       const currentEnd = dateRange.end || getDefaultDateRange().end;
 
       // 1. Fetch main dashboard data and Recommendations in parallel
       const [result, recs] = await Promise.all([
-        fetchDashboardData(
-            currentStart, 
-            currentEnd
-        ),
+        fetchDashboardData(currentStart, currentEnd, queryType),
         fetchRecommendations()
       ]);
       
@@ -73,27 +75,19 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigate
     }
   };
 
-  // Initial fetch with Double-Call Prevention
-  useEffect(() => {
-    if (dataFetchedRef.current) return;
-    dataFetchedRef.current = true;
-    
-    fetchData();
-  }, []); 
-
-  
-  // Add ref for first render check on date filter updates
   const isFirstRender = useRef(true);
 
-  // Refetch when Date Range changes
+  // Data Fetch logic on filter/type change
   useEffect(() => {
-    // Skip the very first render because the initial fetch is handled above
+    // We skip the dataFetchedRef check for subsequent filter updates
     if (isFirstRender.current) {
         isFirstRender.current = false;
+        fetchData();
         return;
     }
     fetchData();
-  }, [dateRange.start, dateRange.end]);
+  }, [dateRange.start, dateRange.end, queryType]);
+
 
   // 1. Extract Unique Campaigns for Filter Dropdown
   const allCampaigns = useMemo(() => {
@@ -106,7 +100,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigate
 
   // 2. Filter & Pivot Data for Main Chart
   const { processedData, activeCampaignsInView } = useMemo(() => {
-    // A. Filter Data by Date
     let filtered = rawData;
     if (dateRange.start) filtered = filtered.filter(d => d.date >= dateRange.start);
     if (dateRange.end) filtered = filtered.filter(d => d.date <= dateRange.end);
@@ -114,17 +107,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigate
     const campaignsInView = new Set<string>();
     const chartData: ChartDataPoint[] = [];
 
-    // B. Pivot per day
     filtered.forEach(day => {
         const point: ChartDataPoint = {
             date: day.date,
             totalOrders: 0,
             totalSpent: 0,
-            totalCommission: 0
+            totalCommission: 0,
+            totalNetProfit: 0
         };
 
         day.campaignEfficiencies.forEach(eff => {
-            // Apply Campaign Filter if active
             if (selectedCampaign !== 'all' && eff.name !== selectedCampaign) {
                 return;
             }
@@ -132,16 +124,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigate
             point.totalOrders += eff.orders;
             point.totalSpent += eff.spent;
             point.totalCommission += eff.commission;
+            point.totalNetProfit += eff.netProfit;
 
-            // Add breakdown keys for stacking
             campaignsInView.add(eff.name);
             point[`spent__${eff.name}`] = eff.spent;
             point[`commission__${eff.name}`] = eff.commission;
-
-            // Add extra metric keys for Tooltip
             point[`cpc__${eff.name}`] = eff.cpc;
             point[`conversionRate__${eff.name}`] = eff.conversionRate;
             point[`roas__${eff.name}`] = eff.roas;
+            point[`netProfit__${eff.name}`] = eff.netProfit;
         });
 
         chartData.push(point);
@@ -160,11 +151,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigate
       return dayData ? dayData.campaignEfficiencies : [];
   }, [detailDate, rawData]);
 
-  // Calculate Summary KPIs
+  // Summary KPIs - Using sum of netProfit from API for totalNetProfit
   const totalOrders = processedData.reduce((acc, curr) => acc + curr.totalOrders, 0);
   const totalCommission = processedData.reduce((acc, curr) => acc + curr.totalCommission, 0);
   const totalSpent = processedData.reduce((acc, curr) => acc + curr.totalSpent, 0);
-  const netProfit = totalCommission - totalSpent;
+  const netProfitTotal = processedData.reduce((acc, curr) => acc + curr.totalNetProfit, 0);
 
   const handleDateChange = (type: 'start' | 'end', value: string) => {
     setDateRange(prev => ({ ...prev, [type]: value }));
@@ -183,9 +174,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigate
                 </svg>
                 <div>
                     <h1 className="text-lg md:text-xl font-bold tracking-tight text-slate-800 leading-none">
-                    Hiệu Suất Tiếp Thị
+                      {shopSettings?.name || 'Hiệu Suất Tiếp Thị'}
                     </h1>
-                    <p className="text-xs text-slate-500">Xin chào, {user.username}</p>
+                    <p className="text-xs text-slate-500 mt-0.5">Xin chào, {user.username}</p>
                 </div>
             </div>
           </div>
@@ -219,22 +210,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigate
 
             <div className="flex items-center gap-2 sm:gap-3">
                 <button 
-                  onClick={fetchData} 
-                  disabled={status === LoadingState.LOADING}
-                  className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2
-                    ${status === LoadingState.LOADING 
-                      ? 'bg-slate-100 text-slate-400 cursor-not-allowed' 
-                      : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-md hover:shadow-lg'
-                    }`}
+                    onClick={onNavigateToShopSettings}
+                    className="px-3 py-2 rounded-lg text-sm font-medium text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 transition-colors"
+                    title="Cài đặt cửa hàng"
                 >
-                  {status === LoadingState.LOADING ? (
-                     <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                  ) : (
-                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-                  )}
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
                 </button>
                 
-                {/* Logout Button */}
                 <button 
                     onClick={onLogout}
                     className="px-3 py-2 rounded-lg text-sm font-medium text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 transition-colors"
@@ -251,8 +236,32 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigate
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
         
-        {/* Date Filters Row */}
-        <div className="flex flex-col sm:flex-row items-end sm:items-center justify-end gap-2">
+        {/* Date Filters & Type Switcher Row */}
+        <div className="flex flex-col sm:flex-row items-end sm:items-center justify-between gap-4">
+            {/* Type Switcher (Segmented Control) */}
+            <div className="bg-white border border-slate-200 rounded-xl p-1 flex items-center shadow-sm">
+                <button
+                    onClick={() => setQueryType('clickTime')}
+                    className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${
+                        queryType === 'clickTime' 
+                        ? 'bg-emerald-600 text-white shadow-md' 
+                        : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+                    }`}
+                >
+                    Thời gian Click
+                </button>
+                <button
+                    onClick={() => setQueryType('orderTime')}
+                    className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${
+                        queryType === 'orderTime' 
+                        ? 'bg-emerald-600 text-white shadow-md' 
+                        : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+                    }`}
+                >
+                    Thời gian Đặt Hàng
+                </button>
+            </div>
+
             <div className="flex items-center bg-white rounded-lg p-1 text-sm border border-slate-200 shadow-sm w-full sm:w-auto">
                 <div className="flex items-center px-3 py-1 flex-1 sm:flex-none">
                     <span className="text-slate-400 mr-2 text-xs font-medium uppercase whitespace-nowrap">Từ</span>
@@ -290,29 +299,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigate
           </div>
         )}
 
-        {status === LoadingState.SUCCESS && rawData.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-16 md:py-20 text-center px-4">
-            <div className="bg-slate-100 p-4 rounded-full mb-4">
-              <svg className="w-8 h-8 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
-              </svg>
-            </div>
-            <h3 className="text-lg font-medium text-slate-900">Chưa có dữ liệu hiển thị</h3>
-            <p className="text-slate-500 max-w-sm mt-2 mb-6">
-              Không tìm thấy dữ liệu chiến dịch trong khoảng thời gian này. Hãy thử thay đổi bộ lọc hoặc import thêm dữ liệu.
-            </p>
-            <button
-                onClick={onNavigateToImport}
-                className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors shadow-sm font-medium text-sm flex items-center gap-2"
-            >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                </svg>
-                Import Dữ Liệu Ngay
-            </button>
-          </div>
-        )}
-
         {rawData.length > 0 && (
           <div className={`transition-all duration-300 ${status === LoadingState.LOADING ? 'opacity-50 blur-[1px]' : ''}`}>
             {/* KPI Cards */}
@@ -344,10 +330,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigate
                <div className="bg-white p-4 md:p-5 rounded-xl border border-slate-200 shadow-sm">
                 <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Lợi Nhuận Ròng (Net)</p>
                 <div className="flex items-baseline gap-2 mt-1">
-                    <p className={`text-2xl font-bold ${netProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                        {new Intl.NumberFormat('vi-VN', { notation: 'compact', compactDisplay: 'short' }).format(Math.abs(netProfit))}
+                    <p className={`text-2xl font-bold ${netProfitTotal >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                        {new Intl.NumberFormat('vi-VN', { notation: 'compact', compactDisplay: 'short' }).format(Math.abs(netProfitTotal))}
                     </p>
-                    <span className="text-xs text-slate-400">{netProfit >= 0 ? 'Lãi' : 'Lỗ'}</span>
+                    <span className="text-xs text-slate-400">{netProfitTotal >= 0 ? 'Lãi' : 'Lỗ'}</span>
                 </div>
               </div>
             </div>
@@ -357,14 +343,37 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigate
                 <RecommendationList recommendations={recommendations} />
             </div>
 
-            {/* Main Visuals Grid - Only MarketingEfficiencyChart */}
-            <div className="grid grid-cols-1 gap-6">
+            {/* Main Visuals - Marketing Chart occupies full width */}
+            <div className="w-full">
               <MarketingEfficiencyChart 
                   data={processedData} 
                   activeCampaigns={activeCampaignsInView}
                   onViewDetails={(date) => setDetailDate(date)}
               />
             </div>
+          </div>
+        )}
+
+        {status === LoadingState.SUCCESS && rawData.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-16 md:py-20 text-center px-4">
+            <div className="bg-slate-100 p-4 rounded-full mb-4">
+              <svg className="w-8 h-8 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-medium text-slate-900">Chưa có dữ liệu hiển thị</h3>
+            <p className="text-slate-500 max-w-sm mt-2 mb-6">
+              Không tìm thấy dữ liệu chiến dịch trong khoảng thời gian này. Hãy thử thay đổi bộ lọc hoặc import thêm dữ liệu.
+            </p>
+            <button
+                onClick={onNavigateToImport}
+                className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors shadow-sm font-medium text-sm flex items-center gap-2"
+            >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                </svg>
+                Import Dữ Liệu Ngay
+            </button>
           </div>
         )}
       </main>

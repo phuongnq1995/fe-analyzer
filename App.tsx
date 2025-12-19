@@ -1,26 +1,32 @@
+
 import React, { useState, useEffect } from 'react';
 import { User } from './types';
 import { Dashboard } from './components/Dashboard';
 import { Login } from './components/Login';
 import { Register } from './components/Register';
 import { ImportData } from './components/ImportData';
+import { ShopSettings } from './components/ShopSettings';
 import { getStoredUser, logoutUser } from './services/authService';
+import { ShopProvider, useShop } from './context/ShopContext';
 
-export default function App() {
+function AppContent() {
   const [user, setUser] = useState<User | null>(null);
-  const [currentView, setCurrentView] = useState<'login' | 'register' | 'dashboard' | 'import'>('login');
-  
+  const [currentView, setCurrentView] = useState<'login' | 'register' | 'dashboard' | 'import' | 'shop-settings'>('login');
+  const { refreshShopSettings } = useShop();
+
   // Check for persisted login on mount
   useEffect(() => {
     const storedUser = getStoredUser();
     if (storedUser) {
         setUser(storedUser);
+        refreshShopSettings(); // Global fetch on mount
         setCurrentView('dashboard');
     }
-  }, []);
+  }, [refreshShopSettings]);
 
-  const handleLoginSuccess = (userData: User) => {
+  const handleLoginSuccess = async (userData: User) => {
     setUser(userData);
+    await refreshShopSettings(); // Global fetch on login success
     setCurrentView('dashboard');
   };
 
@@ -54,12 +60,25 @@ export default function App() {
     return <ImportData onBack={() => setCurrentView('dashboard')} />;
   }
 
+  if (currentView === 'shop-settings') {
+    return <ShopSettings onBack={() => setCurrentView('dashboard')} />;
+  }
+
   // Default Authenticated View: Dashboard
   return (
     <Dashboard 
       user={user} 
       onLogout={handleLogout} 
       onNavigateToImport={() => setCurrentView('import')}
+      onNavigateToShopSettings={() => setCurrentView('shop-settings')}
     />
+  );
+}
+
+export default function App() {
+  return (
+    <ShopProvider>
+      <AppContent />
+    </ShopProvider>
   );
 }

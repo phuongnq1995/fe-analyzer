@@ -4,6 +4,7 @@ export interface ChartDataPoint {
   totalOrders: number;
   totalSpent: number;
   totalCommission: number;
+  totalNetProfit: number;
   [key: string]: any; // For dynamic keys like 'spent__CampaignName'
 }
 
@@ -15,6 +16,7 @@ export interface CampaignRawData {
   orders: number;
   spent: number;
   commission: number;
+  netProfit: number;
   cpc: number;
   conversionRate: number;
   revenue: number;
@@ -44,6 +46,13 @@ export interface User {
   username: string;
   email: string;
   token?: string;
+}
+
+export interface ShopSettings {
+  marketingFee: number;
+  salesTax: number;
+  name: string;
+  description: string;
 }
 
 export interface ShopInfo {

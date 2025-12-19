@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { CampaignRawData } from '../types';
 
@@ -17,8 +18,9 @@ export const CampaignDetailsModal: React.FC<CampaignDetailsModalProps> = ({ isOp
     orders: acc.orders + curr.orders,
     spent: acc.spent + curr.spent,
     commission: acc.commission + curr.commission,
+    netProfit: acc.netProfit + (curr.netProfit || 0),
     revenue: acc.revenue + (curr.revenue || 0),
-  }), { clicks: 0, orders: 0, spent: 0, commission: 0, revenue: 0 });
+  }), { clicks: 0, orders: 0, spent: 0, commission: 0, netProfit: 0, revenue: 0 });
 
   const totalRoas = total.spent > 0 ? total.commission / total.spent : 0;
   const totalCR = total.clicks > 0 ? total.orders / total.clicks : 0;
@@ -65,6 +67,7 @@ export const CampaignDetailsModal: React.FC<CampaignDetailsModalProps> = ({ isOp
                     <th className="px-4 py-3 text-right whitespace-nowrap">Chi phí (Ads)</th>
                     <th className="px-4 py-3 text-right whitespace-nowrap">Hoa hồng</th>
                     <th className="px-4 py-3 text-right whitespace-nowrap">Doanh thu</th>
+                    <th className="px-4 py-3 text-right whitespace-nowrap bg-slate-100/50">Lợi nhuận</th>
                     <th className="px-4 py-3 text-right whitespace-nowrap">ROAS</th>
                   </tr>
                 </thead>
@@ -95,10 +98,13 @@ export const CampaignDetailsModal: React.FC<CampaignDetailsModalProps> = ({ isOp
                           {new Intl.NumberFormat('vi-VN').format(row.spent)}
                         </td>
                         <td className="px-4 py-3 text-right tabular-nums text-emerald-600 font-bold">
-                          {new Intl.NumberFormat('vi-VN').format(row.commission)}
+                          {new Intl.NumberFormat('vi-VN').format(row.commission.toFixed(0))}
                         </td>
                         <td className="px-4 py-3 text-right tabular-nums text-slate-600">
-                          {new Intl.NumberFormat('vi-VN').format(row.revenue || 0)}
+                          {new Intl.NumberFormat('vi-VN').format(row.revenue.toFixed(0) || 0)}
+                        </td>
+                        <td className={`px-4 py-3 text-right tabular-nums font-bold bg-slate-50/30 group-hover:bg-slate-100/50 ${row.netProfit >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
+                          {new Intl.NumberFormat('vi-VN').format(row.netProfit.toFixed(0))}
                         </td>
                         <td className="px-4 py-3 text-right tabular-nums">
                           <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
@@ -121,9 +127,12 @@ export const CampaignDetailsModal: React.FC<CampaignDetailsModalProps> = ({ isOp
                     <td className="px-4 py-3 text-right">{total.orders.toLocaleString()}</td>
                     <td className="px-4 py-3 text-right">{(totalCR * 100).toFixed(2)}%</td>
                     <td className="px-4 py-3 text-right">-</td>
-                    <td className="px-4 py-3 text-right text-red-700">{new Intl.NumberFormat('vi-VN').format(total.spent)}</td>
-                    <td className="px-4 py-3 text-right text-emerald-700">{new Intl.NumberFormat('vi-VN').format(total.commission)}</td>
-                    <td className="px-4 py-3 text-right">{new Intl.NumberFormat('vi-VN').format(total.revenue)}</td>
+                    <td className="px-4 py-3 text-right text-red-700">{new Intl.NumberFormat('vi-VN').format(total.spent.toFixed(0))}</td>
+                    <td className="px-4 py-3 text-right text-emerald-700">{new Intl.NumberFormat('vi-VN').format(total.commission.toFixed(0))}</td>
+                    <td className="px-4 py-3 text-right">{new Intl.NumberFormat('vi-VN').format(total.revenue.toFixed(0))}</td>
+                    <td className={`px-4 py-3 text-right ${total.netProfit >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
+                        {new Intl.NumberFormat('vi-VN').format(total.netProfit.toFixed(0))}
+                    </td>
                     <td className="px-4 py-3 text-right">{totalRoas.toFixed(2)}x</td>
                    </tr>
                 </tfoot>

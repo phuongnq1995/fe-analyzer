@@ -1,3 +1,4 @@
+
 import React from 'react';
 import {
   ComposedChart,
@@ -28,7 +29,7 @@ const CustomTooltip = ({ active, payload, label, onViewDetails }: any) => {
       return (
         <div 
             onClick={() => onViewDetails(data.date)}
-            className="bg-white p-4 rounded-xl shadow-xl border border-slate-200 text-xs min-w-[300px] z-50 cursor-pointer hover:shadow-2xl transition-all group"
+            className="bg-white p-4 rounded-xl shadow-xl border border-slate-200 text-xs min-w-[320px] z-50 cursor-pointer hover:shadow-2xl transition-all group"
         >
           <div className="flex items-center justify-between mb-3 border-b border-slate-100 pb-2">
             <p className="font-bold text-slate-800 text-sm">
@@ -42,22 +43,28 @@ const CustomTooltip = ({ active, payload, label, onViewDetails }: any) => {
             </div>
           </div>
   
-          {/* Totals Summary */}
-          <div className="grid grid-cols-3 gap-2 bg-slate-50 p-2 rounded-lg group-hover:bg-slate-100 transition-colors">
+          {/* Totals Summary - Net Profit moved to latest column as requested */}
+          <div className="grid grid-cols-4 gap-1.5 bg-slate-50 p-2 rounded-lg group-hover:bg-slate-100 transition-colors">
                <div className="text-center">
-                  <p className="text-slate-500 mb-0.5 uppercase text-[10px] tracking-wider">Đơn hàng</p>
-                  <p className="font-bold text-amber-500 text-base">{data.totalOrders}</p>
+                  <p className="text-slate-500 mb-0.5 uppercase text-[9px] tracking-wider">Đơn</p>
+                  <p className="font-bold text-amber-500 text-sm">{data.totalOrders}</p>
                </div>
                <div className="text-center border-l border-slate-200">
-                  <p className="text-slate-500 mb-0.5 uppercase text-[10px] tracking-wider">Tổng Chi</p>
-                  <p className="font-bold text-red-600 text-sm">
+                  <p className="text-slate-500 mb-0.5 uppercase text-[9px] tracking-wider">Chi</p>
+                  <p className="font-bold text-red-600 text-[11px]">
                       {new Intl.NumberFormat('vi-VN', { notation: 'compact', compactDisplay: 'short' }).format(data.totalSpent)}
                   </p>
                </div>
                <div className="text-center border-l border-slate-200">
-                  <p className="text-slate-500 mb-0.5 uppercase text-[10px] tracking-wider">Tổng Thu</p>
-                  <p className="font-bold text-emerald-600 text-sm">
+                  <p className="text-slate-500 mb-0.5 uppercase text-[9px] tracking-wider">Thu</p>
+                  <p className="font-bold text-emerald-600 text-[11px]">
                       {new Intl.NumberFormat('vi-VN', { notation: 'compact', compactDisplay: 'short' }).format(data.totalCommission)}
+                  </p>
+               </div>
+               <div className="text-center border-l border-slate-200">
+                  <p className="text-slate-500 mb-0.5 uppercase text-[9px] tracking-wider">Lợi nhuận</p>
+                  <p className={`font-bold text-[11px] ${data.totalNetProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                      {new Intl.NumberFormat('vi-VN', { notation: 'compact', compactDisplay: 'short' }).format(data.totalNetProfit)}
                   </p>
                </div>
           </div>
