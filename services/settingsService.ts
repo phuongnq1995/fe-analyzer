@@ -2,7 +2,8 @@
 import { ShopSettings } from "../types";
 import { authenticatedFetch } from "./authService";
 
-const SETTINGS_API_URL = 'http://localhost:8080/api/shop/settings';
+const baseUrl = import.meta.env.VITE_API_URL;
+const SETTINGS_API_URL = `${baseUrl}/shop/settings`;
 
 export const getSettings = async (): Promise<ShopSettings> => {
   try {

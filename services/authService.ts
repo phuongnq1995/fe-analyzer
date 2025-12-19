@@ -69,17 +69,9 @@ export const loginUser = async (username: string, password: string): Promise<Use
 
   } catch (error: any) {
     console.warn("Login API failed (likely backend is offline), falling back to mock data.", error);
-    
-    // Simulate network delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
 
-    // Return a mock user based on the input
-    return {
-      id: 'mock-user-123',
-      username: username,
-      email: `${username.toLowerCase()}@example.com`,
-      token: 'mock-jwt-token-xyz'
-    };
+    // Simulate network delay
+    throw new Error('Sai tên đăng nhập hoặc mật khẩu');
   }
 };
 
