@@ -17,6 +17,8 @@ interface MarketingEfficiencyChartProps {
   data: ChartDataPoint[];
   activeCampaigns: string[];
   onViewDetails: (date: string) => void;
+  onlyActive: boolean;
+  setOnlyActive: (value: boolean) => void;
 }
 
 const SPENT_COLOR = '#ef4444'; // Red 500
@@ -77,7 +79,9 @@ const CustomTooltip = ({ active, payload, label, onViewDetails }: any) => {
 export const MarketingEfficiencyChart: React.FC<MarketingEfficiencyChartProps> = ({ 
   data, 
   activeCampaigns,
-  onViewDetails
+  onViewDetails,
+  onlyActive,
+  setOnlyActive
 }) => {
 
   const formatXAxis = (val: string) => {
@@ -96,8 +100,21 @@ export const MarketingEfficiencyChart: React.FC<MarketingEfficiencyChartProps> =
                 Cột Đỏ (Trái): Tổng Chi tiêu Quảng cáo • Cột Xanh (Phải): Tổng Hoa hồng thu được
             </p>
           </div>
+
+          <div className="flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-lg border border-slate-100 hover:bg-slate-100 transition-colors cursor-pointer group shadow-sm">
+            <input 
+              type="checkbox" 
+              id="activeFilter" 
+              checked={onlyActive}
+              onChange={(e) => setOnlyActive(e.target.checked)}
+              className="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 cursor-pointer"
+            />
+            <label htmlFor="activeFilter" className="text-sm font-bold text-slate-600 group-hover:text-slate-900 cursor-pointer select-none">
+              Chỉ hiện chiến dịch hoạt động
+            </label>
+          </div>
       </div>
-      
+
       {/* Responsive Height Container */}
       <div className="h-[300px] sm:h-[400px] lg:h-[500px] w-full">
         <ResponsiveContainer width="100%" height="100%">

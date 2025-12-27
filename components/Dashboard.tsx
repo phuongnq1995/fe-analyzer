@@ -21,6 +21,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigate
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
   const [error, setError] = useState<string | null>(null);
 
+    
+  // New State for Active Filter - Default to True
+  const [showOnlyActive, setShowOnlyActive] = useState(true);
+
   // Ref to prevent double fetch in React Strict Mode
   const dataFetchedRef = useRef(false);
 
@@ -55,11 +59,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigate
     setStatus(LoadingState.LOADING);
     setError(null);
     try {
-      // Ensure we have a valid date range to pass
+
       const currentStart = dateRange.start || getDefaultDateRange().start;
       const currentEnd = dateRange.end || getDefaultDateRange().end;
 
-      // 1. Fetch main dashboard data and Recommendations in parallel
       const [result, recs] = await Promise.all([
         fetchDashboardData(currentStart, currentEnd, queryType),
         fetchRecommendations()
@@ -88,8 +91,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigate
     fetchData();
   }, [dateRange.start, dateRange.end, queryType]);
 
-
-  // 1. Extract Unique Campaigns for Filter Dropdown
   const allCampaigns = useMemo(() => {
     const campaigns = new Set<string>();
     rawData.forEach(day => {
@@ -121,6 +122,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigate
                 return;
             }
 
+            const isActive = eff.spent > 0 || eff.commission > 0;
+            if (showOnlyActive && !isActive) {
+                return;
+            }
+
             point.totalOrders += eff.orders;
             point.totalSpent += eff.spent;
             point.totalCommission += eff.commission;
@@ -142,16 +148,24 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigate
     const sortedActiveCampaigns = Array.from(campaignsInView).sort();
 
     return { processedData: result, activeCampaignsInView: sortedActiveCampaigns };
-  }, [rawData, dateRange, selectedCampaign]);
+  }, [rawData, dateRange, selectedCampaign, showOnlyActive]);
 
   // Data for Modal
   const detailData = useMemo(() => {
       if (!detailDate) return [];
       const dayData = rawData.find(d => d.date === detailDate);
-      return dayData ? dayData.campaignEfficiencies : [];
-  }, [detailDate, rawData]);
+      if (!dayData) return [];
+      
+      // Also apply active filter to modal data for consistency if needed, 
+      // but usually modal shows everything for that day.
+      // Based on request "filter apply for campaignData", we apply it here too.
+      return dayData.campaignEfficiencies.filter(eff => {
+          if (showOnlyActive) return eff.spent > 0 || eff.commission > 0;
+          return true;
+      });
+  }, [detailDate, rawData, showOnlyActive]);
 
-  // Summary KPIs - Using sum of netProfit from API for totalNetProfit
+  // Summary KPIs
   const totalOrders = processedData.reduce((acc, curr) => acc + curr.totalOrders, 0);
   const totalCommission = processedData.reduce((acc, curr) => acc + curr.totalCommission, 0);
   const totalSpent = processedData.reduce((acc, curr) => acc + curr.totalSpent, 0);
@@ -170,7 +184,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigate
           <div className="flex items-center justify-between w-full md:w-auto">
             <div className="flex items-center gap-2">
                 <svg className="w-8 h-8 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                 </svg>
                 <div>
                     <h1 className="text-lg md:text-xl font-bold tracking-tight text-slate-800 leading-none">
@@ -349,6 +363,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigate
                   data={processedData} 
                   activeCampaigns={activeCampaignsInView}
                   onViewDetails={(date) => setDetailDate(date)}
+                  onlyActive={showOnlyActive}
+                  setOnlyActive={setShowOnlyActive}
               />
             </div>
           </div>
