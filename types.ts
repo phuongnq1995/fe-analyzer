@@ -75,3 +75,17 @@ export interface Recommendation {
   action: RecommendationAction;
   advise: string;
 }
+
+// --- MAPPING TYPES ---
+
+export interface CampaignMappingInfo {
+  id: number;
+  name: string;
+  unmapped: boolean;
+}
+
+export interface OrderLinkMappingInfo {
+  id: number;
+  name: string;
+  campaigns: CampaignMappingInfo[];
+}

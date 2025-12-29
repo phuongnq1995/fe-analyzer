@@ -6,12 +6,13 @@ import { Login } from './components/Login';
 import { Register } from './components/Register';
 import { ImportData } from './components/ImportData';
 import { ShopSettings } from './components/ShopSettings';
+import { Mapping } from './components/Mapping';
 import { getStoredUser, logoutUser } from './services/authService';
 import { ShopProvider, useShop } from './context/ShopContext';
 
 function AppContent() {
   const [user, setUser] = useState<User | null>(null);
-  const [currentView, setCurrentView] = useState<'login' | 'register' | 'dashboard' | 'import' | 'shop-settings'>('login');
+  const [currentView, setCurrentView] = useState<'login' | 'register' | 'dashboard' | 'import' | 'shop-settings' | 'mapping'>('login');
   const { refreshShopSettings } = useShop();
 
   // Check for persisted login on mount
@@ -64,6 +65,10 @@ function AppContent() {
     return <ShopSettings onBack={() => setCurrentView('dashboard')} />;
   }
 
+  if (currentView === 'mapping') {
+    return <Mapping onBack={() => setCurrentView('dashboard')} />;
+  }
+
   // Default Authenticated View: Dashboard
   return (
     <Dashboard 
@@ -71,6 +76,7 @@ function AppContent() {
       onLogout={handleLogout} 
       onNavigateToImport={() => setCurrentView('import')}
       onNavigateToShopSettings={() => setCurrentView('shop-settings')}
+      onNavigateToMapping={() => setCurrentView('mapping')}
     />
   );
 }
