@@ -31,7 +31,7 @@ const LEVEL_CONFIG: Record<RecommendationLevel, { label: string, color: string, 
         )
     },
     OK: { 
-        label: 'Ổn định', 
+        label: 'Chấp nhận', 
         color: 'text-slate-700', 
         bg: 'bg-slate-100', 
         border: 'border-slate-200',
@@ -72,28 +72,49 @@ export const RecommendationList: React.FC<RecommendationListProps> = ({ recommen
     const [canScrollRight, setCanScrollRight] = useState(false);
 
     const checkScroll = () => {
-        if (scrollContainerRef.current) {
-            const { scrollLeft, scrollWidth, clientWidth } = scrollContainerRef.current;
-            setCanScrollLeft(scrollLeft > 0);
-            setCanScrollRight(scrollLeft + clientWidth < scrollWidth - 1);
-        }
+        // Use requestAnimationFrame to ensure layout is calculated after paint
+        requestAnimationFrame(() => {
+            if (scrollContainerRef.current) {
+                const { scrollLeft, scrollWidth, clientWidth } = scrollContainerRef.current;
+                // Use a small buffer (1px) for floating point calculations in high-dpi screens
+                setCanScrollLeft(scrollLeft > 1);
+                setCanScrollRight(scrollLeft + clientWidth < scrollWidth - 2);
+            }
+        });
     };
 
     useEffect(() => {
+        const container = scrollContainerRef.current;
+        if (!container) return;
+
+        // ResizeObserver is much more reliable for elements that grow/shrink dynamically
+        const resizeObserver = new ResizeObserver(() => {
+            checkScroll();
+        });
+
+        resizeObserver.observe(container);
+        
+        // Initial check
         checkScroll();
-        window.addEventListener('resize', checkScroll);
-        return () => window.removeEventListener('resize', checkScroll);
+
+        // Safety timeout for content that might render with a delay (e.g., animations)
+        const timer = setTimeout(checkScroll, 100);
+
+        return () => {
+            resizeObserver.disconnect();
+            clearTimeout(timer);
+        };
     }, [recommendations]);
 
     const scroll = (direction: 'left' | 'right') => {
         if (scrollContainerRef.current) {
-            const scrollAmount = 320; // Approximately one card width + gap
+            const scrollAmount = 320; 
             scrollContainerRef.current.scrollBy({
                 left: direction === 'left' ? -scrollAmount : scrollAmount,
                 behavior: 'smooth'
             });
-            // Brief timeout to check scroll status after animation
-            setTimeout(checkScroll, 300);
+            // Check scroll again after the smooth animation is mostly done
+            setTimeout(checkScroll, 350);
         }
     };
 
@@ -126,7 +147,6 @@ export const RecommendationList: React.FC<RecommendationListProps> = ({ recommen
                 )}
             </div>
 
-            {/* Horizontal Scrolling Container */}
             <div className="relative group">
                 {/* Navigation Buttons */}
                 {canScrollLeft && (
