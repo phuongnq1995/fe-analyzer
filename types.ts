@@ -67,13 +67,18 @@ export interface AuthResponse {
 
 // --- RECOMMENDATION TYPES ---
 
-export type RecommendationAction = 'Increase' | 'Keep' | 'Decrease' | 'Stop';
+export type RecommendationLevel = 'VERY_BAD' | 'BAD' | 'OK' | 'EFFICIENT' | 'VERY_EFFICIENT';
+
+export interface RecommendationResponse {
+  evaluateDate: string;
+  evaluateCampaigns: Recommendation[];
+}
 
 export interface Recommendation {
-  campaignName: string;
-  efficiencyLevel: 1 | 2 | 3 | 4 | 5;
-  action: RecommendationAction;
-  advise: string;
+  name: string;
+  level: RecommendationLevel;
+  briefSummary: string;
+  recommendedActions: string[];
 }
 
 // --- MAPPING TYPES ---
@@ -89,3 +94,4 @@ export interface OrderLinkMappingInfo {
   name: string;
   campaigns: CampaignMappingInfo[];
 }
+

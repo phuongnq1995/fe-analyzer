@@ -9,7 +9,7 @@ export const getSettings = async (): Promise<ShopSettings> => {
   try {
     const response = await authenticatedFetch(SETTINGS_API_URL, {
       method: 'GET',
-      headers: { 'Accept': 'application/json' }
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
     });
 
     if (!response.ok) {
@@ -32,7 +32,7 @@ export const getSettings = async (): Promise<ShopSettings> => {
 export const updateSettings = async (settings: ShopSettings): Promise<ShopSettings> => {
   const response = await authenticatedFetch(SETTINGS_API_URL, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
     body: JSON.stringify(settings)
   });
 

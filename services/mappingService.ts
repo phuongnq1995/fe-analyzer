@@ -19,7 +19,8 @@ export const getOrderLinksWithMappings = async (): Promise<OrderLinkMappingInfo[
 
 export const mapCampaignToOrderLink = async (campaignId: number, orderLinkId: number): Promise<void> => {
   const response = await authenticatedFetch(`${MAPPING_BASE}/campaigns/${campaignId}/orderLinks/${orderLinkId}`, {
-    method: 'POST'
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
   });
   if (!response.ok) throw new Error("Lỗi khi gán chiến dịch");
 };

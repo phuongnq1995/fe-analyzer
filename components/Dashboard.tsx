@@ -3,6 +3,7 @@ import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { fetchDashboardData, fetchRecommendations } from '../services/geminiService';
 import { ChartDataPoint, ApiCampaignEfficiency, LoadingState, User, Recommendation } from '../types';
 import { MarketingEfficiencyChart } from './MarketingEfficiencyChart';
+import { CampaignTrendChart } from './CampaignTrendChart';
 import { RecommendationList } from './RecommendationList';
 import { CampaignDetailsModal } from './CampaignDetailsModal';
 import { useShop } from '../context/ShopContext';
@@ -20,9 +21,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigate
   const [status, setStatus] = useState<LoadingState>(LoadingState.IDLE);
   const [rawData, setRawData] = useState<ApiCampaignEfficiency[]>([]);
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
+  const [evaluateDate, setEvaluateDate] = useState<string | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
 
-    
   // New State for Active Filter - Default to True
   const [showOnlyActive, setShowOnlyActive] = useState(true);
 
@@ -64,13 +65,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigate
       const currentStart = dateRange.start || getDefaultDateRange().start;
       const currentEnd = dateRange.end || getDefaultDateRange().end;
 
-      const [result, recs] = await Promise.all([
+      const [result, recsResponse] = await Promise.all([
         fetchDashboardData(currentStart, currentEnd, queryType),
         fetchRecommendations()
       ]);
-      
+
       setRawData(result.dailyStats);
-      setRecommendations(recs);
+      setRecommendations(recsResponse.evaluateCampaigns);
+      setEvaluateDate(recsResponse.evaluateDate);
 
       setStatus(LoadingState.SUCCESS);
     } catch (e: any) {
@@ -365,10 +367,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigate
 
             {/* Recommendations Section */}
             <div className="mt-2">
-                <RecommendationList recommendations={recommendations} />
+                <RecommendationList recommendations={recommendations} lastUpdated={evaluateDate} />
             </div>
 
-            {/* Main Visuals - Marketing Chart occupies full width */}
             <div className="w-full">
               <MarketingEfficiencyChart 
                   data={processedData} 
@@ -376,6 +377,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigate
                   onViewDetails={(date) => setDetailDate(date)}
                   onlyActive={showOnlyActive}
                   setOnlyActive={setShowOnlyActive}
+              />
+            </div>
+
+            {/* Main Visuals - Marketing Chart occupies full width */}
+            <div className="w-full">
+              <CampaignTrendChart 
+                  data={processedData} 
               />
             </div>
           </div>

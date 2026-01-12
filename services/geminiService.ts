@@ -1,4 +1,4 @@
-import { ApiResponse, ApiCampaignEfficiency, Recommendation } from "../types";
+import { ApiResponse, ApiCampaignEfficiency, RecommendationResponse } from "../types";
 import { authenticatedFetch } from "./authService";
 
 const baseUrl = import.meta.env.VITE_API_URL;
@@ -12,9 +12,7 @@ try {
     url.searchParams.append('type', type);
     const response = await authenticatedFetch(url.toString(), {
       method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
     });
 
     if (!response.ok) {
@@ -30,19 +28,19 @@ try {
   }
 };
 
-export const fetchRecommendations = async (): Promise<Recommendation[]> => {
+export const fetchRecommendations = async (): Promise<RecommendationResponse> => {
     try {
       const url = new URL(baseUrl+'/recommendation');
 
       const response = await authenticatedFetch(url.toString(), {
           method: 'GET',
-          headers: { 'Accept': 'application/json' }
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
       });
       
       if (!response.ok) throw new Error(response.statusText);
       return await response.json();
     } catch (error) {
         console.warn("API request failed for recommendations:", error);
-        return [];
+        return null;
     }
 };

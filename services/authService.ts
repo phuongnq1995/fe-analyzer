@@ -40,7 +40,7 @@ export const loginUser = async (username: string, password: string): Promise<Use
   try {
     const response = await fetch(`${AUTH_BASE_URL}/login`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
       body: JSON.stringify({ username, password })
     });
 
@@ -70,8 +70,7 @@ export const loginUser = async (username: string, password: string): Promise<Use
   } catch (error: any) {
     console.warn("Login API failed (likely backend is offline), falling back to mock data.", error);
 
-    // Simulate network delay
-    throw new Error('Sai tên đăng nhập hoặc mật khẩu');
+    throw new Error('Đăng nhập thất bại', error);
   }
 };
 
@@ -79,7 +78,7 @@ export const registerUser = async (username: string, password: string, shopName:
   try {
     const response = await fetch(`${AUTH_BASE_URL}/register`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
         body: JSON.stringify({ username, password , shopName, shopDescription})
     });
 
@@ -91,7 +90,7 @@ export const registerUser = async (username: string, password: string, shopName:
     const data = await response.json();
 
     const user: User = { ...data.user, token: data.token };
-    
+
     // Persist session
     localStorage.setItem(TOKEN_KEY, data.token);
     localStorage.setItem(USER_KEY, JSON.stringify(user));
