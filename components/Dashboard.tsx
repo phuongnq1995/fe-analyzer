@@ -1,9 +1,8 @@
 
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { fetchDashboardData, fetchRecommendations } from '../services/geminiService';
-import { ChartDataPoint, ApiCampaignEfficiency, LoadingState, User, Recommendation } from '../types';
+import { ChartDataPoint, ApiCampaignEfficiency, LoadingState, User, Recommendation, CampaignRawData } from '../types';
 import { MarketingEfficiencyChart } from './MarketingEfficiencyChart';
-import { CampaignTrendChart } from './CampaignTrendChart';
 import { RecommendationList } from './RecommendationList';
 import { CampaignDetailsModal } from './CampaignDetailsModal';
 import { useShop } from '../context/ShopContext';
@@ -27,17 +26,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigate
   // New State for Active Filter - Default to True
   const [showOnlyActive, setShowOnlyActive] = useState(true);
 
-  // Ref to prevent double fetch in React Strict Mode
-  const dataFetchedRef = useRef(false);
-
   // Modal State
   const [detailDate, setDetailDate] = useState<string | null>(null);
 
   // Helper to get default date range (10 days)
   const getDefaultDateRange = () => {
     const today = new Date();
-    const nineDaysAgo = new Date();
-    nineDaysAgo.setDate(today.getDate() - 9); // Last 10 days
+    const prevDate = new Date();
+    prevDate.setDate(today.getDate() - 9); // Last 10 days
 
     const formatDate = (date: Date) => {
         const year = date.getFullYear();
@@ -47,7 +43,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigate
     };
 
     return {
-      start: formatDate(nineDaysAgo),
+      start: formatDate(prevDate),
       end: formatDate(today)
     };
   };
@@ -56,6 +52,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigate
   const [dateRange, setDateRange] = useState<{ start: string; end: string }>(getDefaultDateRange());
   const [selectedCampaign, setSelectedCampaign] = useState<string>('all');
   const [queryType, setQueryType] = useState<'clickTime' | 'orderTime'>('clickTime');
+
+  // Search Autocomplete State
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   const fetchData = async () => {
     setStatus(LoadingState.LOADING);
@@ -101,6 +102,38 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigate
     });
     return Array.from(campaigns).sort();
   }, [rawData]);
+
+  // Autocomplete Logic
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsDropdownOpen(false);
+        // On close, revert to selected value text
+        if (selectedCampaign === 'all') {
+            setSearchQuery('');
+        } else {
+            setSearchQuery(selectedCampaign);
+        }
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [selectedCampaign]);
+
+  // Update input text when selection changes externally or initially
+  useEffect(() => {
+      setSearchQuery(selectedCampaign === 'all' ? '' : selectedCampaign);
+  }, [selectedCampaign]);
+
+  const filteredCampaignsOptions = useMemo(() => {
+    return allCampaigns.filter(c => c.toLowerCase().includes(searchQuery.toLowerCase()));
+  }, [allCampaigns, searchQuery]);
+
+  const handleSelectCampaign = (val: string) => {
+    setSelectedCampaign(val);
+    setSearchQuery(val === 'all' ? '' : val);
+    setIsDropdownOpen(false);
+  };
 
   // 2. Filter & Pivot Data for Main Chart
   const { processedData, activeCampaignsInView } = useMemo(() => {
@@ -154,19 +187,57 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigate
   }, [rawData, dateRange, selectedCampaign, showOnlyActive]);
 
   // Data for Modal
-  const detailData = useMemo(() => {
-      if (!detailDate) return [];
-      const dayData = rawData.find(d => d.date === detailDate);
-      if (!dayData) return [];
-      
-      // Also apply active filter to modal data for consistency if needed, 
-      // but usually modal shows everything for that day.
-      // Based on request "filter apply for campaignData", we apply it here too.
-      return dayData.campaignEfficiencies.filter(eff => {
-          if (showOnlyActive) return eff.spent > 0 || eff.commission > 0;
-          return true;
-      });
-  }, [detailDate, rawData, showOnlyActive]);
+  const { detailData, modalType, modalTitle, modalSubtitle } = useMemo(() => {
+    if (!detailDate) {
+      return { detailData: [], modalType: 'daily_breakdown' as const, modalTitle: '', modalSubtitle: '' };
+    }
+
+    // CASE 1: Specific Campaign Selected -> Show History (List of dates)
+    if (selectedCampaign !== 'all') {
+       let filtered = rawData;
+       if (dateRange.start) filtered = filtered.filter(d => d.date >= dateRange.start);
+       if (dateRange.end) filtered = filtered.filter(d => d.date <= dateRange.end);
+       
+       // Sort by date
+       filtered = [...filtered].sort((a, b) => a.date.localeCompare(b.date));
+
+       const historyData = filtered.map(day => {
+           const camp = day.campaignEfficiencies.find(c => c.name === selectedCampaign);
+           if (camp) {
+               return { ...camp, date: day.date }; // Ensure date is present from parent day
+           }
+           // Return zeroed data if missing for that day
+           return {
+               date: day.date,
+               name: selectedCampaign,
+               clicks: 0, orders: 0, spent: 0, commission: 0, netProfit: 0,
+               cpc: 0, conversionRate: 0, revenue: 0, roas: 0
+           } as CampaignRawData;
+       });
+
+       return {
+         detailData: historyData,
+         modalType: 'campaign_history' as const,
+         modalTitle: `Lịch sử hiệu quả: ${selectedCampaign}`,
+         modalSubtitle: `Giai đoạn: ${new Date(dateRange.start || getDefaultDateRange().start).toLocaleDateString('vi-VN')} - ${new Date(dateRange.end || getDefaultDateRange().end).toLocaleDateString('vi-VN')}`
+       };
+    }
+
+    // CASE 2: All Campaigns -> Show Breakdown for that specific date (List of campaigns)
+    const dayData = rawData.find(d => d.date === detailDate);
+    const dailyData = dayData ? dayData.campaignEfficiencies.filter(eff => {
+        if (showOnlyActive) return eff.spent > 0 || eff.commission > 0;
+        return true;
+    }) : [];
+
+    return {
+      detailData: dailyData,
+      modalType: 'daily_breakdown' as const,
+      modalTitle: 'Chi tiết hiệu quả chiến dịch',
+      modalSubtitle: `Ngày: ${new Date(detailDate).toLocaleDateString('vi-VN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`
+    };
+
+  }, [detailDate, rawData, showOnlyActive, selectedCampaign, dateRange]);
 
   // Summary KPIs
   const totalOrders = processedData.reduce((acc, curr) => acc + curr.totalOrders, 0);
@@ -221,18 +292,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigate
                     </svg>
                     Mapping
                 </button>
-
-                {/* Campaign Filter Dropdown */}
-                <select 
-                    value={selectedCampaign}
-                    onChange={(e) => setSelectedCampaign(e.target.value)}
-                    className="bg-slate-100 border-none text-sm rounded-lg px-3 py-2 text-slate-700 font-medium focus:ring-2 focus:ring-emerald-500 outline-none cursor-pointer hover:bg-slate-200 transition-colors w-full sm:w-auto sm:max-w-[200px]"
-                >
-                    <option value="all">Tất cả Chiến dịch</option>
-                    {allCampaigns.map(c => (
-                        <option key={c} value={c}>{c}</option>
-                    ))}
-                </select>
             </div>
 
             <div className="flex items-center gap-2 sm:gap-3">
@@ -264,33 +323,107 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigate
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
         
         {/* Date Filters & Type Switcher Row */}
-        <div className="flex flex-col sm:flex-row items-end sm:items-center justify-between gap-4">
-            {/* Type Switcher (Segmented Control) */}
-            <div className="bg-white border border-slate-200 rounded-xl p-1 flex items-center shadow-sm">
-                <button
-                    onClick={() => setQueryType('clickTime')}
-                    className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${
-                        queryType === 'clickTime' 
-                        ? 'bg-emerald-600 text-white shadow-md' 
-                        : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
-                    }`}
-                >
-                    Thời gian Click
-                </button>
-                <button
-                    onClick={() => setQueryType('orderTime')}
-                    className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${
-                        queryType === 'orderTime' 
-                        ? 'bg-emerald-600 text-white shadow-md' 
-                        : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
-                    }`}
-                >
-                    Thời gian Đặt Hàng
-                </button>
+        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+            {/* Left Group: Type & Campaign Search */}
+            <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+                {/* Type Switcher (Segmented Control) */}
+                <div className="bg-white border border-slate-200 rounded-xl p-1 flex items-center shadow-sm whitespace-nowrap">
+                    <button
+                        onClick={() => setQueryType('clickTime')}
+                        className={`px-3 py-1.5 rounded-lg text-sm font-bold transition-all ${
+                            queryType === 'clickTime' 
+                            ? 'bg-emerald-600 text-white shadow-md' 
+                            : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+                        }`}
+                    >
+                        Click Time
+                    </button>
+                    <button
+                        onClick={() => setQueryType('orderTime')}
+                        className={`px-3 py-1.5 rounded-lg text-sm font-bold transition-all ${
+                            queryType === 'orderTime' 
+                            ? 'bg-emerald-600 text-white shadow-md' 
+                            : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+                        }`}
+                    >
+                        Order Time
+                    </button>
+                </div>
+
+                {/* Campaign Autocomplete Search */}
+                <div ref={dropdownRef} className="relative w-full sm:w-72 z-30">
+                    <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <svg className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                        </div>
+                        <input
+                            type="text"
+                            className="w-full pl-9 pr-8 py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none shadow-sm transition-all truncate placeholder:text-slate-400"
+                            placeholder="Tất cả chiến dịch"
+                            value={searchQuery}
+                            onChange={(e) => {
+                                setSearchQuery(e.target.value);
+                                setIsDropdownOpen(true);
+                            }}
+                            onFocus={() => setIsDropdownOpen(true)}
+                        />
+                        {/* Clear Button */}
+                        {selectedCampaign !== 'all' && (
+                            <button 
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleSelectCampaign('all');
+                                }}
+                                className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-300 hover:text-slate-500 cursor-pointer"
+                            >
+                                <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+                                </svg>
+                            </button>
+                        )}
+                        {/* Chevron Down (Visual Only) */}
+                        {selectedCampaign === 'all' && (
+                             <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-slate-400">
+                                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                </svg>
+                            </div>
+                        )}
+                    </div>
+
+                    {isDropdownOpen && (
+                        <div className="absolute mt-1 w-full bg-white rounded-xl shadow-xl border border-slate-100 max-h-64 overflow-auto py-1 animate-in fade-in zoom-in-95 duration-100 scrollbar-hide">
+                            <button
+                                onClick={() => handleSelectCampaign('all')}
+                                className={`w-full text-left px-4 py-2 text-sm hover:bg-slate-50 transition-colors border-b border-slate-50 ${selectedCampaign === 'all' ? 'text-emerald-600 font-bold bg-emerald-50/50' : 'text-slate-700'}`}
+                            >
+                                Tất cả chiến dịch
+                            </button>
+                            {filteredCampaignsOptions.length > 0 ? (
+                                filteredCampaignsOptions.map(c => (
+                                    <button
+                                        key={c}
+                                        onClick={() => handleSelectCampaign(c)}
+                                        className={`w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 transition-colors border-b border-slate-50 last:border-0 ${selectedCampaign === c ? 'text-emerald-600 font-bold bg-emerald-50/50' : 'text-slate-700'}`}
+                                    >
+                                        <div className="truncate">{c}</div>
+                                    </button>
+                                ))
+                            ) : (
+                                <div className="px-4 py-4 text-sm text-slate-400 text-center italic">
+                                    Không tìm thấy chiến dịch nào
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
             </div>
 
-            <div className="flex items-center bg-white rounded-lg p-1 text-sm border border-slate-200 shadow-sm w-full sm:w-auto">
-                <div className="flex items-center px-3 py-1 flex-1 sm:flex-none">
+            {/* Right Group: Date Picker */}
+            <div className="flex items-center bg-white rounded-lg p-1 text-sm border border-slate-200 shadow-sm w-full sm:w-auto min-w-[300px]">
+                <div className="flex items-center px-3 py-1 flex-1">
                     <span className="text-slate-400 mr-2 text-xs font-medium uppercase whitespace-nowrap">Từ</span>
                     <input 
                         type="date" 
@@ -300,7 +433,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigate
                     />
                 </div>
                 <div className="w-px h-4 bg-slate-200 mx-1"></div>
-                <div className="flex items-center px-3 py-1 flex-1 sm:flex-none">
+                <div className="flex items-center px-3 py-1 flex-1">
                     <span className="text-slate-400 mr-2 text-xs font-medium uppercase whitespace-nowrap">Đến</span>
                     <input 
                         type="date" 
@@ -365,12 +498,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigate
               </div>
             </div>
 
-            {/* Recommendations Section */}
-            <div className="mt-2">
-                <RecommendationList recommendations={recommendations} lastUpdated={evaluateDate} />
-            </div>
-
-            <div className="w-full">
+            <div className="grid grid-cols-1 gap-6 mt-2">
               <MarketingEfficiencyChart 
                   data={processedData} 
                   activeCampaigns={activeCampaignsInView}
@@ -379,13 +507,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigate
                   setOnlyActive={setShowOnlyActive}
               />
             </div>
-
-            {/* Main Visuals - Marketing Chart occupies full width */}
-            <div className="w-full">
-              <CampaignTrendChart 
-                  data={processedData} 
-              />
+            
+            {/* Recommendations Section */}
+            <div className="mt-2">
+                <RecommendationList recommendations={recommendations} lastUpdated={evaluateDate} />
             </div>
+
           </div>
         )}
 
@@ -418,8 +545,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigate
         <CampaignDetailsModal 
           isOpen={!!detailDate} 
           onClose={() => setDetailDate(null)} 
-          date={detailDate} 
-          data={detailData} 
+          data={detailData}
+          title={modalTitle}
+          subtitle={modalSubtitle}
+          type={modalType}
         />
       )}
     </div>
